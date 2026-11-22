@@ -24,15 +24,24 @@ services:
       HOST: 0.0.0.0
       PORT: "3001"
       PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-}
-      AUTH_BASE_URL: ${AUTH_BASE_URL:?Set AUTH_BASE_URL to the auth service origin}
-      ADMIN_USERS_BASE_URL: ${ADMIN_USERS_BASE_URL:-}
-      GEO_BASE_URL: ${GEO_BASE_URL:-}
+      AUTH_BASE_URL: https://api-gateway:5062
+      ADMIN_USERS_BASE_URL: https://api-gateway:5062
+      GEO_BASE_URL: https://api-gateway:5062
+      NODE_EXTRA_CA_CERTS: /run/acb-tls/ca.crt
       REDIS_URL: redis://redis:6379
       SESSION_SIGNING_SECRET: ${SESSION_SIGNING_SECRET:?Generate a 48-byte base64url secret}
       SESSION_ENCRYPTION_KEY: ${SESSION_ENCRYPTION_KEY:?Generate a 32-byte base64url key}
       SESSION_TTL_SECONDS: ${SESSION_TTL_SECONDS:-3600}
       UPSTREAM_TIMEOUT_MS: ${UPSTREAM_TIMEOUT_MS:-8000}
       TRUSTED_PROXY: ${TRUSTED_PROXY:-172.16.0.0/12}
+    volumes:
+      - type: bind
+        source: ${ACB_TLS_DIR:?Set external ACB_TLS_DIR}/ca.crt
+        target: /run/acb-tls/ca.crt
+        read_only: true
+    networks:
+      - default
+      - acb-net
     depends_on:
       redis:
         condition: service_healthy
@@ -77,3 +86,8 @@ services:
 
 volumes:
   redis-data:
+
+networks:
+  acb-net:
+    external: true
+    name: acb-net
