@@ -50,7 +50,7 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         BFF_INTERNAL_URL: http://bff:3001
-    # Reverse Proxy: sin puertos publicados; se entra por acb_reverse_proxy (8080)
+    # Reverse Proxy: sin puertos publicados; se entra por acb_web_rp (8280)
     networks:
       default: {}
       acb-net:
@@ -66,6 +66,20 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    restart: unless-stopped
+
+  # ACB_Web_RP (Reverse Proxy, escenario 2): unica puerta del panel hacia la red.
+  acb-web-rp:
+    image: nginx:1.28.0-alpine
+    container_name: acb_web_rp
+    ports:
+      - "8280:80"      # HTTP
+      # - "7443:443"   # HTTPS: lo agrega Secure Channel
+    volumes:
+      - ./infra/nginx/web-rp.conf:/etc/nginx/conf.d/default.conf:ro
+    networks: [acb-net]
+    depends_on:
+      - web
     restart: unless-stopped
 
   # Optional public HTTPS URL through a Cloudflare quick tunnel. The URL appears
