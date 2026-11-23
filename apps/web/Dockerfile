@@ -23,6 +23,7 @@ WORKDIR /app
 COPY --from=build /app/apps/web/.next/standalone .
 COPY --from=build /app/apps/web/.next/static apps/web/.next/static
 COPY --from=build /app/apps/web/public apps/web/public
+COPY apps/web/tls-server.mjs apps/web/tls-server.mjs
 USER node
 EXPOSE 3000
-CMD ["node", "apps/web/server.js"]
+CMD ["node", "apps/web/tls-server.mjs"]

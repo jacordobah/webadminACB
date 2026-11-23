@@ -62,19 +62,19 @@ npm run build
 
 Los comandos incluyen los workspaces. `npm test` utiliza datos sintéticos y Redis simulado; incluye hidratación e interactividad del proveedor SSR. `npm run test:ssr` construye y arranca el servidor standalone real con un BFF de prueba: verifica HTML del login, estilos MUI, assets, rutas protegidas, solicitudes RSC, errores y dos identidades concurrentes sin filtración de JWT/cookies. No demuestra conectividad con auth o Redis reales ni sustituye una revisión visual en navegador.
 
-Para verificar persistencia Redis real, proporcionar un `BFF_TEST_REDIS_URL` dedicado y ejecutar `npm run test:integration`. Esa prueba crea y elimina únicamente sus propias sesiones aleatorias; no limpia bases ni escanea claves ajenas. Con la pila Compose activa, `redis://localhost:6380` apunta al Redis del proyecto.
+Para verificar persistencia Redis real, proporcionar un `BFF_TEST_REDIS_URL` dedicado y ejecutar `npm run test:integration`. Esa prueba crea y elimina únicamente sus propias sesiones aleatorias; no limpia bases ni escanea claves ajenas. En el despliegue TLS, el cliente debe usar `rediss://localhost:6380` y confiar en la CA local.
 
 ## Docker local
 
-Requiere Docker Desktop con el motor Linux. Copiar `.env.example` a `.env` y completar los secretos generados y `AUTH_BASE_URL`. La autenticación real necesita el servicio auth accesible desde los contenedores (`host.docker.internal` para un servicio del host).
+Requiere Docker Desktop con el motor Linux, la red externa `acb-net` y certificados de la CA local en un directorio externo indicado por `ACB_TLS_DIR`. Copiar `.env.example` a `.env` y completar los secretos generados. El BFF alcanza Gateway mediante `https://api-gateway:5062` en `acb-net` y valida su certificado.
 
 ```sh
 docker compose up -d --build
 ```
 
-Abrir `http://localhost:8080` (o el `WEB_PORT` configurado). También funciona desde otro dispositivo con `http://<IP-LAN>:8080`, sin cambiar `.env`. Se despliegan tres contenedores (web, bff, redis); Next.js publica el puerto y reenvía `/bff/*` al BFF, manteniendo un único origen. Redis es privado dentro de la red; solo se publica en `127.0.0.1:6380` para permitir `npm run test:integration` con `BFF_TEST_REDIS_URL=redis://localhost:6380`.
+Abrir `https://localhost:8280` (o el `WEB_PORT` configurado) tras confiar manualmente en la CA local desde el navegador. El único Reverse Proxy `ACB_Web_RP` (`web-tls`, contenedor `acb_web_rp`) publica HTTPS; Next.js y BFF no publican puertos. Nginx valida el certificado HTTPS de Next.js, Next.js valida el del BFF y el BFF está configurado para validar Gateway y Redis mediante la CA local. Redis solo publica su puerto TLS en `127.0.0.1:6380` para pruebas locales. El login `/bff/v1/auth/login` tiene un límite Nginx de 5 solicitudes por minuto por IP, con `burst=5 nodelay`: permite hasta cinco solicitudes adicionales en ráfaga antes de responder 429. Detrás de un túnel, Nginx ve la IP del túnel y comparte el cupo; solo debe habilitarse `real_ip` para proxies con rangos expresamente confiables.
 
-El BFF se ejecuta en contenedor con `NODE_ENV=development`: las cookies llevan `SameSite=Lax` sin `Secure`, válido únicamente en desarrollo. Si se define `PUBLIC_ORIGIN` HTTPS, la cookie pasa a `__Host-acb_session` con `Secure`; en producción se exige HTTPS para ese valor y un proxy de confianza explícito.
+Con el `PUBLIC_ORIGIN` HTTPS predeterminado, la cookie del BFF se llama `__Host-acb_session` y lleva `Secure` y `SameSite=Lax`. Si se cambia `WEB_PORT` o se usa un origen público distinto, ajuste `PUBLIC_ORIGIN` para conservar cookies y CSRF. Configure `TRUSTED_PROXY` con direcciones conocidas.
 
 Para exponerlo por HTTPS con una URL pública cambiante:
 

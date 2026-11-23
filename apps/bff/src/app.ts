@@ -1,4 +1,4 @@
-import Fastify, { LogController, type FastifyRequest } from 'fastify';
+import Fastify, { LogController, type FastifyInstance, type FastifyRequest } from 'fastify';
 import cookie from '@fastify/cookie';
 import session, { type SessionStore } from '@fastify/session';
 import csrf from '@fastify/csrf-protection';
@@ -12,6 +12,7 @@ import { registerAdminUsersRoutes } from './modules/admin-users/routes.js';
 import { registerGeoRoutes } from './modules/geo/routes.js';
 import { createUpstream } from './upstreams/http.js';
 import multipart from '@fastify/multipart';
+import { readFileSync } from 'node:fs';
 
 type Dependencies = { store: SessionStore; authenticate: Authenticate; ready: () => Promise<boolean>; redis?: Redis; close?: () => Promise<void> };
 
@@ -31,12 +32,16 @@ const requestOrigin = (request: FastifyRequest) => {
 };
 
 export const buildApp = async (config: BffConfig, dependencies: Dependencies) => {
+  if (Boolean(process.env.BFF_TLS_CERT_FILE) !== Boolean(process.env.BFF_TLS_KEY_FILE)) throw new Error('BFF TLS certificate and key must both be configured');
   const secure = config.PUBLIC_ORIGIN?.startsWith('https://') ?? false;
-  const app = Fastify({
+  const options = {
     bodyLimit: 16384, requestTimeout: 15000, trustProxy: config.TRUSTED_PROXY?.split(',').map(value => value.trim()) ?? false,
     logController: new LogController({ disableRequestLogging: true }),
     logger: config.NODE_ENV === 'test' ? false : { redact: ['req.headers.cookie', 'req.headers.authorization', 'res.headers["set-cookie"]'] },
-  });
+  };
+  const app = (process.env.BFF_TLS_CERT_FILE && process.env.BFF_TLS_KEY_FILE
+    ? Fastify({ ...options, https: { cert: readFileSync(process.env.BFF_TLS_CERT_FILE), key: readFileSync(process.env.BFF_TLS_KEY_FILE) } })
+    : Fastify(options)) as unknown as FastifyInstance;
 
   app.setErrorHandler((error, request, reply) => {
     const fault = error instanceof ApiFault ? error : null;
